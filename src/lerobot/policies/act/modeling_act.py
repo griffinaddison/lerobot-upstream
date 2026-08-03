@@ -430,7 +430,11 @@ class ACT(nn.Module):
             cls_joint_is_pad = torch.full(
                 (batch_size, 2 if self.config.robot_state_feature else 1),
                 False,
-                device=batch[OBS_STATE].device,
+                # Not OBS_STATE: every other read of it here is guarded by
+                # `if self.config.robot_state_feature`, so a policy with no
+                # robot state never puts it in the batch. This only needs a
+                # device, and action_is_pad is used on the next line anyway.
+                device=batch["action_is_pad"].device,
             )
             key_padding_mask = torch.cat(
                 [cls_joint_is_pad, batch["action_is_pad"]], axis=1
@@ -453,8 +457,10 @@ class ACT(nn.Module):
             # When not using the VAE encoder, we set the latent to be all zeros.
             mu = log_sigma_x2 = None
             # TODO(rcadene, alexander-soare): remove call to `.to` to speedup forward ; precompute and use buffer
+            # Same reason as above: OBS_STATE is absent when the policy declares
+            # no robot state, and all we need is a device.
             latent_sample = torch.zeros([batch_size, self.config.latent_dim], dtype=torch.float32).to(
-                batch[OBS_STATE].device
+                next(self.parameters()).device
             )
 
         # Prepare transformer encoder inputs.
